@@ -1,0 +1,547 @@
+---
+title: "Modelos de ocupación multi-especie Parte 2"
+subtitle: "&#x1F9A8;&#x1F9A5; Modelos de comunidad &#x1F99D;&#x1F98C;"  
+author: "Gabriel Andrade Ponce" 
+date: '`r Sys.Date()`'
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    seal: false
+    nature:
+      slideNumberFormat: "%current%"
+      highlightLanguage: ["r", "css"]
+      highlightStyle: github
+      highlightLines: true
+      ratio: 16:9
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(icon)
+library(emo)
+library(xaringanExtra)
+library(countdown)
+library(hillR)
+library(ggeffects)
+
+
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(
+  fig.width=9, fig.height=3.5, fig.retina=3,
+  out.width = "100%",
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.show = TRUE,
+  hiline = TRUE
+)
+```
+
+```{r xaringan-themer, include=FALSE, warning=FALSE}
+library(xaringanthemer)
+style_duo_accent(
+  primary_color = "#035AA6", 
+  secondary_color = "#95dfef",
+  header_font_google = google_font("Cabin"),
+  text_font_google   = google_font("Coming Soon", "400", "400i"),
+  code_font_google   = google_font("Roboto")
+)
+
+```
+
+class: center, top, inverse
+background-image: url("img/coati.jpg")
+background-position: 60% 60%
+background-size: cover
+
+# `r rmarkdown::metadata$title`
+# `r rmarkdown::metadata$subtitle`
+
+---
+class: inverse, center
+
+
+# Otra opción elegante
+.pull-left[
+<br>
+### Es posible estimar la riqueza de especies directamente de un modelo jerárquico
+Es mejor modelar directamente la variación espacial de la riqueza mientras se considera la detección, eliminando así varias etapas de análisis
+]
+
+.pull-right[
+![](img/memediv.jpg)
+]
+
+---
+# Modelo de comunidad Dorazio & Royle (2005)
+
+Es una extensión del modelo de una especie y una temporada en donde se combinan las historias de detección de todas las especies encontradas en los sitios de muestreo
+![](img/multi.png)
+
+---
+class: center
+# ¿Cómo funciona?
+
+.pull-left[
+![](img/M-N.png)
+]
+
+.pull-right[
+<br>
+<br>
+Para entender el modelo tenemos que imaginar una comunidad con **N** especies. Al realizar un muestreo encontramos **n** especies. Cómo no sabemos que porcentaje de **n** representa **N**, debemos asumir una comunidad **M** lo suficientemente grande para contener a **N**.]
+---
+# El aumentado de datos &#x1fa84;
+
+.pull-left[
+Es un concepto utilizado bajo el enfoque bayesiano y consiste en agregar un número arbitrario de especies potenciales a la muestra de modo que $M>N$.
+<br>
+<br>
+Este número se define como $nz= M-n$, donde **n** es el número de especies observado y **nz** es el número de especies potenciales adicionadas.
+]
+
+.pull-right[
+<br>
+
+![](https://i.pinimg.com/236x/09/1b/50/091b50565f23ae2be2c4c2b533d1bd33--ugly-americans-nerd.jpg)
+]
+
+---
+
+# Este modelo tiene tres niveles o procesos
+
+### 1. Primern nivel o super parámetro
+El parámetro aumentado describe la probabilidad de que la especie "real" **k** pertenezca a **N**, dado el total de especies potenciales de **M**
+$$ \omega{_k} \sim Bernoulli(\Omega) $$
+--
+Donde $\Omega$ es la probabilidad de que la especie **k** pertenezca a la meta-comunidad de tamaño (desconocido) **N**. En ese sentido $N=M\Omega$, por lo cual al estimar $\Omega$ conoceremos **N**. Esto es posible ya que conocemos **M**.
+---
+
+### 2. Segundo nivel o proceso ecológico
+
+Describe la ocupación de las especies en cada sitio *i* siguiendo una distribución *Bernoulli*
+$$z_{ik}|w_k\sim Bernoulli(\psi_{k}\omega_k)$$
+--
+Donde $z_{k}$ son elementos de la matriz de ocupación real y $\psi_{k}$ es la probabilidad de ocupación de cada especie en cada sitio de muestreo dado que este presente en la comunidad.
+
+--
+### 3. Tercer nivel o proceso observacional
+
+El proceso de detección o logístico es similar al del modelo de ocupación básico. Puede ser *Binomial* o *Bernoulli* dependiendo del formato de los datos
+
+$$ysum_{ik}|z_{ik}\sim Binomial(J_i,p_{k}z_{ik})$$
+--
+Donde $ysum_{ik}$ indica la detección o no detección de una especie **k** en el sitio **i** en **J** número de eventos para cada sitio, con una probabilidad de $p_{k}$
+---
+# El modelo asume heterogeneidad en  psi y p
+
+El modelo asume a cada especie como un **efecto aleatorio**. Es decir, que todas provienen de una misma distribución y son similares pero no iguales. 
+
+Este supuesto hace que  especies con menos datos no difumine la información de la comunidad. Lo que proporciona mayor precisión y habilidad de predicción al parámetro aumentado.
+En términos de probabilidad los efectos aleatorios se define así para la ocupación
+$$logit(\psi_k)\sim Normal(\mu_{lpsi},\sigma^2_{lpsi})$$
+
+Y así para la detección
+
+
+$$logit(p_k)\sim Normal(\mu_{lp},\sigma^2_{lp})$$
+Donde $\mu$ y $\sigma$ son los parámetros de una distribución normal
+
+---
+# ¿Cómo se estiman las especies faltantes?
+
+El modelo usa la información de las especies presentes para estimar las especies sin datos.
+Así la probabilidad de no encontrar una especie **k** es:
+
+$$m_k=[1-\psi_{ik}[1-(1-p_k)^J]]^S$$
+
+---
+class: center
+### ¿Cómo se estiman las especies faltantes?
+
+A medida que tenemos menor $\psi_k$ o $p_k$ pues $N>n$
+
+<img src="img/mk.png" width="1200" height= "400" />
+
+---
+# Manos a la obra
+### Script `DRmodel_script.R`
+ Lo primero es cargar todas las librerias necesarias.
+> Recuerden que para instalar rjags necesitan instalar en su maquina el programa [JAGS](https://sourceforge.net/projects/mcmc-jags/files/)
+
+```{r}
+library(rjags) # Para correr el modelo
+library(SpadeR) # Riqueza Chao2
+library(tidyverse) # Manipular datos
+
+library(beepr) # Opcional para avisar R termine
+library(tictoc) # Opcional para tomar el tiempo de la función
+library(extrafont) #opcional para cambiar la fuente
+```
+---
+# Formato de los datos
+
+En este caso vamos a usar los datos de ejemplo del libro **Applied hierarchical modeling in ecology** volumen 1.
+Mis datos de fototrampeo no funcionaron por un problema de los inits del modelo, pero el código para darle formato a sus datos de CT esta en `DR_script.R`
+
+
+```{r}
+# Datos crudos del libro
+MHB2014 <- read.csv2("MHB_2014.csv")
+
+nrep <- MHB2014$nsurvey # especificar las repeticiones para cada sitio
+ 
+# Los datos están colapsados a conteos donde las columnas son especies y las filas sitios de muestreo.
+# Datos de ejemplo del libro previamente modificados.
+
+ysum <- read.csv("ysum.csv")[,-1] #267 sitios y 145 sps
+nsite <- nrow(ysum) # número de sitios
+nspec <- ncol(ysum) # número de especies
+```
+---
+## La base de `ysum`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+knitr::kable(head(ysum), format = 'html')
+```
+
+---
+## Parámetros del aumentado de datos
+
+El número de especies aumentada es arbitrario, pero vamos a intentar escoger un valor que sepamos que pueda contener el número de especies faltantes, o al menos duplique las especies observadas
+
+```{r}
+# Aumentado de datos
+nz <- 150   # Especies potenciales en la población
+M <- nspec + nz  # Tamaño de M son las especies observadas + las aumentadas
+
+yaug <- cbind(ysum, array(0, dim=c(nsite, nz))) # agregamos las historias de detección de las especies inventadas
+```
+
+
+---
+## Finalmente unimos todo en un objeto lista con los datos que requiere el modelo
+
+```{r}
+# Generamos la base de datos para el modelo
+str(win.data <- list(yaug = yaug, #matriz aumentada 
+                     nsite = nrow(ysum), # sitios
+                     nrep = nrep, #repeticiones
+                     M = M, # Mega población
+                     nspec = nspec, # especies
+                     nz = nz) ) # especies aumentadas
+```
+
+
+---
+## Creando el modelo
+
+El modelo lo vamos a generar en un lenguaje llamado BUGS, y rjags es la conexión con ese lenguaje y R
+
+```{r eval=F}
+sink("modeloDR.txt") #nombre del modelo
+cat("
+model {
+
+# Priors para describir la heterogeneidad entre las especies de la comunidad
+
+for(k in 1:M){    # Loop para todas las especies
+  lpsi[k] ~ dnorm(mu.lpsi, tau.lpsi)
+  lp[k] ~ dnorm(mu.lp, tau.lp)
+}
+
+# Priors para la comunidad
+omega ~ dunif(0,1)      #Parámetro aumentado
+mu.lpsi ~ dnorm(0,0.001) # Promedio de psi (logit)
+mu.lp ~ dnorm(0,0.001)   # Promedio de p (logit)
+tau.lpsi <- pow(sd.lpsi, -2)
+sd.lpsi ~ dunif(0,5)    # Heterogeneidad de especies en logit(psi)
+tau.lp <- pow(sd.lp, -2)
+sd.lp ~ dunif(0,5)        # Heterogeneidad de especies en logit(p)
+```
+
+---
+
+```{r eval=FALSE}
+"# Parámetro aumentado 
+for(k in 1:M){
+  w[k] ~ dbern(omega)           # Parámetro de comunidad
+}                               
+
+# Modelo ecológico para la ocurrencia z
+
+for(k in 1:M){
+  mu.psi[k] <- w[k] * psi[k]  
+  logit(psi[k]) <- lpsi[k]
+  for (i in 1:nsite) {
+    z[i,k] ~ dbern(mu.psi[k])
+  }
+}
+
+# Modelo observacional y
+for(k in 1:M){
+  logit(p[k]) <- lp[k]
+  for (i in 1:nsite) {
+    mu.p[i,k] <- z[i,k] * p[k]  
+    yaug[i,k] ~ dbin(mu.p[i,k], nrep[i])
+  }
+}
+
+
+```
+
+---
+```{r eval=FALSE}
+# Parámetros derivados
+for(k in 1:M){
+   Nocc.fs[k] <- sum(z[,k])     # Sitios ocupados
+}
+for (i in 1:nsite) {
+   Nsite[i] <- sum(z[i,])       # Número de especies que ocupa cada sitio
+}
+n0 <- sum(w[(nspec+1):(nspec+nz)]) # Número de especies no observadas
+Ntotal <- sum(w[])              # Total de especies de la comunidad (= nspec + n0)
+}
+",fill = TRUE)
+sink()
+```
+
+
+
+---
+# Los valores iniciales
+
+
+
+```{r}
+# Valores iniciales
+wst <- rep(1, nspec+nz)   # Uno para todos los sitios
+zst <- array(1, dim = c(nsite, nspec+nz)) # ditto de z
+inits <- function() list(z = zst, 
+                         w = wst, 
+                         lpsi = rnorm(n = nspec+nz), 
+                         lp = rnorm(n = nspec+nz))
+```
+
+---
+# Los parámetros que vamos a monitorear 
+
+```{r}
+params <- c("mu.lpsi", 
+            "sd.lpsi", 
+            "mu.lp", 
+            "sd.lp", 
+            "psi", 
+            "p", 
+            "Nsite", 
+            "Ntotal", 
+            "omega", 
+            "n0")
+```
+
+---
+## Ya por fin el  jags
+
+En este caso no corran la función porque dura alrededor de 56 min
+
+```{r eval=F}
+# Valores para Markov Chain Monte Carlo
+ni <- 22000   ;   nt <- 2   ;   nb <- 2000   ;   nc <- 3
+
+# Ahora si a correr el modelo
+mod_result <- jags(win.data, 
+             inits, 
+             params, 
+             "modeloDR.txt", 
+             n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb, parallel = TRUE); beep(sound=8)
+
+# Duración 56 min aprox
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+load("results/DR_result")
+```
+
+---
+## Nuestro resultado
+
+```{r message=FALSE, warning=FALSE}
+str(mod_result)
+```
+
+---
+### Veamos el resultado gráfico
+
+La riqueza estimada de especies es ~165 sps
+.pull-left[
+```{r message=FALSE, warning=FALSE}
+(riqueza_est <- mod_result$mean$Ntotal)
+```
+
+```{r, eval=FALSE}
+plot(table(mod_result$sims.list$Ntotal), 
+     main="", 
+     ylab = "",
+     xlab = "Riqueza de especies",
+     frame= F,
+     xlim= c(144, 245))
+abline(v= nspec, col= "blue", lwd=4)
+abline(v= riqueza_est, col= "red", lwd=4)
+```
+]
+.pull-right[
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot(table(mod_result$sims.list$Ntotal), 
+     main="", 
+     ylab = "",
+     xlab = "Riqueza de especies",
+     frame= F,
+     xlim= c(144, 245))
+abline(v= nspec, col= "blue", lwd=4)
+abline(v= riqueza_est, col= "red", lwd=4)
+```
+
+
+]
+---
+class:inverse
+
+# Ajustamos nuestro primer modelo de multi-especie. 
+
+Recordemos que **N** es la riqueza estimada a un **área mayor** de nuestro muestreo (área que no conocemos)
+.pull-left[
+### **N** depende de si cumplimos los supuestos del área
+- El muestreo es aleatorio. El área de muestreo debe **representar la región**
+- En caso contrario N representa el número de especies un área hipotética con **las mismas condiciones**
+- Si la región es pequeña, **N** puede ser **sobre-estimada**
+]
+.pull-right[
+### y de las especies
+- Datos de **insectos** no sirven para predecir aves
+- Predicción a especies que sean **detectados de manera similar** con la metodología usada.
+
+.footnote[Guillera-Arroita, G, Kéry, M, Lahoz-Monfort, JJ. Inferring species richness using multispecies occupancy modeling: Estimation performance and interpretation. Ecol Evol. 2019; 9: 780– 792. https://doi.org/10.1002/ece3.4821]
+]
+---
+# ¿Será mejor que un estimador no-paramétrico?
+
+```{r}
+## 5.1 Riqueza con Chao2----
+
+# Formatear los datos a un vector de frecuencia
+abu_Chao <- yaug %>% 
+  select(1:nspec) %>%  # seleccionar especies observadas
+  t() %>% # trasponer la tabla
+  rowSums(. , na.rm = T) %>% # sumar las filas
+  as.data.frame()
+
+# Calcular la riqueza con estimadores no paramétricos
+chao_sp <- ChaoSpecies(abu_Chao, datatype = "abundance")
+
+NICHao <- chao_sp$Species_table[5,c(1,3,4)] # Extraer valores de IChao
+Nocu <- mod_result$summary[862,c(1,4,7)] # Valores del modelo DR
+
+# Unir en un solo dataframe
+Nplotdata <- rbind(IChao=NICHao, DR.mod=Nocu) %>% 
+  as.data.frame() %>% 
+  rownames_to_column(.)
+```
+
+---
+# Comparación
+
+Veamos de manera gráfica que tanto difieren las estimaciones de la riqueza
+
+.pull-left[
+
+```{r}
+windowsFonts(TNR = windowsFont("Times New Roman")) # Fuentes
+
+# Gráfico para comparar la riqueza estimada
+plotN <- ggplot(Nplotdata, aes(x=rowname, y= Estimate, col=rowname))+
+  geom_point(aes(shape=rowname),size=3)+
+  geom_errorbar(aes(ymin= Nplotdata$`95%Lower`, ymax= Nplotdata$`95%Upper`), width=.3, size=1)+
+  labs(x="Estimador de riqueza",y="Número de especies estimado", title = "Diferencia de los estimadores de riqueza")+
+  theme_classic()+
+    theme(text=element_text(size = 13, family = "TNR"), plot.title = element_text(hjust= 0.5), legend.position = "none")
+```
+
+]
+
+.pull-right[
+
+```{r echo=FALSE}
+plotN
+```
+
+
+]
+
+---
+class: inverse
+
+# Ocupación multi-specie vs IChao
+.pull-left[
+
+
+![](img/pildoras.jpg)
+
+.footnote[ Tingley, MW, Nadeau, CP, Sandor, ME. Multi-species occupancy models as robust estimators of community richness. Methods Ecol Evol. 2020; 11: 633– 642. https://doi.org/10.1111/2041-210X.13378]
+]
+
+.pull-right[
+Ambos lo hacen muy mal cuando $\psi_k$ es muy **bajo**
+
+- **Chao** siempre estará sesgado al valor **más bajo de N** por no considerar la detección (De hecho Chao lo reconoce)
+- Los modelos de ocupación son muy **hambrientos** de datos
+- Tienes que saber "**programar**" para ajustar modelos multi-specie 
+- Todavía hay algunos bmoles con la heterogeneidad y los prior (Guillera-Arroita et al. 2019)
+]
+
+---
+# Las posibilidades son infinitas
+1. Estructura de la diversidad- Número efectivo de especies
+![](img/dethill.png)
+---
+## 1. Estructura de la diversidad- Número efectivo de especies
+
+.pull-left[
+Cómo la presencia o no de leones afecta la riqueza de meso-carnívoros
+
+>Curveira-Santos Gonçalo, Sutherland Chris, Tenan Simone, Fernández-Chacón lbert, Mann Gareth K. H., Pitman Ross T.and Swanepoel Lourens H. 2021. Mesocarnivore community structuring in the presence of Africa's apex predator. Proc. R. Soc. B.2882020237920202379. http://doi.org/10.1098/rspb.2020.2379
+
+]
+
+.pull-right[ ![](img/hilllion.png)
+]
+---
+# 2. Diversidad funcional y filogenética
+.pull-left[
+Las consecuencias de no considerar a especies no detectadas en los análisis.
+
+> Jarzyna, M. A., & Jetz, W. (2016). Detecting the multiple facets of biodiversity. Trends in ecology & evolution, 31(7), 527-538. https://doi.org/10.1016/j.tree.2016.04.002
+
+
+
+Les dejo ejemplos divertidos en la carpeta de bibliografía
+
+]
+
+.pull-right[
+![](img/funcional.jpg)
+]
+
+---
+class: inverse, center, top
+
+background-image: url("img/peca.JPG")
+background-position: 60% 60%
+background-size: cover
+
+
+# .big-text[Gracias]
+
+---

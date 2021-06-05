@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Modelos de ocupación multi-especie Parte 2</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Gabriel Andrade Ponce" />
+    <meta name="date" content="2021-06-04" />
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+
+class: center, top, inverse
+background-image: url("img/coati.jpg")
+background-position: 60% 60%
+background-size: cover
+
+# Modelos de ocupación multi-especie Parte 2
+# &amp;#x1F9A8;&amp;#x1F9A5; Modelos de comunidad &amp;#x1F99D;&amp;#x1F98C;
+
+---
+class: inverse, center
+
+
+# Otra opción elegante
+.pull-left[
+&lt;br&gt;
+### Es posible estimar la riqueza de especies directamente de un modelo jerárquico
+Es mejor modelar directamente la variación espacial de la riqueza mientras se considera la detección, eliminando así varias etapas de análisis
+]
+
+.pull-right[
+![](img/memediv.jpg)
+]
+
+---
+# Modelo de comunidad Dorazio &amp; Royle (2005)
+
+Es una extensión del modelo de una especie y una temporada en donde se combinan las historias de detección de todas las especies encontradas en los sitios de muestreo
+![](img/multi.png)
+
+---
+class: center
+# ¿Cómo funciona?
+
+.pull-left[
+![](img/M-N.png)
+]
+
+.pull-right[
+&lt;br&gt;
+&lt;br&gt;
+Para entender el modelo tenemos que imaginar una comunidad con **N** especies. Al realizar un muestreo encontramos **n** especies. Cómo no sabemos que porcentaje de **n** representa **N**, debemos asumir una comunidad **M** lo suficientemente grande para contener a **N**.]
+---
+# El aumentado de datos &amp;#x1fa84;
+
+.pull-left[
+Es un concepto utilizado bajo el enfoque bayesiano y consiste en agregar un número arbitrario de especies potenciales a la muestra de modo que `\(M&gt;N\)`.
+&lt;br&gt;
+&lt;br&gt;
+Este número se define como `\(nz= M-n\)`, donde **n** es el número de especies observado y **nz** es el número de especies potenciales adicionadas.
+]
+
+.pull-right[
+&lt;br&gt;
+
+![](https://i.pinimg.com/236x/09/1b/50/091b50565f23ae2be2c4c2b533d1bd33--ugly-americans-nerd.jpg)
+]
+
+---
+
+# Este modelo tiene tres niveles o procesos
+
+### 1. Primern nivel o super parámetro
+El parámetro aumentado describe la probabilidad de que la especie "real" **k** pertenezca a **N**, dado el total de especies potenciales de **M**
+$$ \omega{_k} \sim Bernoulli(\Omega) $$
+--
+Donde `\(\Omega\)` es la probabilidad de que la especie **k** pertenezca a la meta-comunidad de tamaño (desconocido) **N**. En ese sentido `\(N=M\Omega\)`, por lo cual al estimar `\(\Omega\)` conoceremos **N**. Esto es posible ya que conocemos **M**.
+---
+
+### 2. Segundo nivel o proceso ecológico
+
+Describe la ocupación de las especies en cada sitio *i* siguiendo una distribución *Bernoulli*
+`$$z_{ik}|w_k\sim Bernoulli(\psi_{k}\omega_k)$$`
+--
+Donde `\(z_{k}\)` son elementos de la matriz de ocupación real y `\(\psi_{k}\)` es la probabilidad de ocupación de cada especie en cada sitio de muestreo dado que este presente en la comunidad.
+
+--
+### 3. Tercer nivel o proceso observacional
+
+El proceso de detección o logístico es similar al del modelo de ocupación básico. Puede ser *Binomial* o *Bernoulli* dependiendo del formato de los datos
+
+`$$ysum_{ik}|z_{ik}\sim Binomial(J_i,p_{k}z_{ik})$$`
+--
+Donde `\(ysum_{ik}\)` indica la detección o no detección de una especie **k** en el sitio **i** en **J** número de eventos para cada sitio, con una probabilidad de `\(p_{k}\)`
+---
+# El modelo asume heterogeneidad en  psi y p
+
+El modelo asume a cada especie como un **efecto aleatorio**. Es decir, que todas provienen de una misma distribución y son similares pero no iguales. 
+
+Este supuesto hace que  especies con menos datos no difumine la información de la comunidad. Lo que proporciona mayor precisión y habilidad de predicción al parámetro aumentado.
+En términos de probabilidad los efectos aleatorios se define así para la ocupación
+`$$logit(\psi_k)\sim Normal(\mu_{lpsi},\sigma^2_{lpsi})$$`
+
+Y así para la detección
+
+
+`$$logit(p_k)\sim Normal(\mu_{lp},\sigma^2_{lp})$$`
+Donde `\(\mu\)` y `\(\sigma\)` son los parámetros de una distribución normal
+
+---
+# ¿Cómo se estiman las especies faltantes?
+
+El modelo usa la información de las especies presentes para estimar las especies sin datos.
+Así la probabilidad de no encontrar una especie **k** es:
+
+`$$m_k=[1-\psi_{ik}[1-(1-p_k)^J]]^S$$`
+
+---
+class: center
+### ¿Cómo se estiman las especies faltantes?
+
+A medida que tenemos menor `\(\psi_k\)` o `\(p_k\)` pues `\(N&gt;n\)`
+
+&lt;img src="img/mk.png" width="1200" height= "400" /&gt;
+
+---
+# Manos a la obra
+### Script `DRmodel_script.R`
+ Lo primero es cargar todas las librerias necesarias.
+&gt; Recuerden que para instalar rjags necesitan instalar en su maquina el programa [JAGS](https://sourceforge.net/projects/mcmc-jags/files/)
+
+
+```r
+library(rjags) # Para correr el modelo
+library(SpadeR) # Riqueza Chao2
+library(tidyverse) # Manipular datos
+
+library(beepr) # Opcional para avisar R termine
+library(tictoc) # Opcional para tomar el tiempo de la función
+library(extrafont) #opcional para cambiar la fuente
+```
+---
+# Formato de los datos
+
+En este caso vamos a usar los datos de ejemplo del libro **Applied hierarchical modeling in ecology** volumen 1.
+Mis datos de fototrampeo no funcionaron por un problema de los inits del modelo, pero el código para darle formato a sus datos de CT esta en `DR_script.R`
+
+
+
+```r
+# Datos crudos del libro
+MHB2014 &lt;- read.csv2("MHB_2014.csv")
+
+nrep &lt;- MHB2014$nsurvey # especificar las repeticiones para cada sitio
+ 
+# Los datos están colapsados a conteos donde las columnas son especies y las filas sitios de muestreo.
+# Datos de ejemplo del libro previamente modificados.
+
+ysum &lt;- read.csv("ysum.csv")[,-1] #267 sitios y 145 sps
+nsite &lt;- nrow(ysum) # número de sitios
+nspec &lt;- ncol(ysum) # número de especies
+```
+---
+## La base de `ysum`
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; Little.Grebe &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Great.Crested.Grebe &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Grey.Heron &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; White.Stork &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Mute.Swan &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Greylag.Goose &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Mallard &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Merganser &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Honey.Buzzard &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Red.Kite &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Black.Kite &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Northern.Goshawk &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Sparrowhawk &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Buzzard &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Golden.Eagle &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Peregrine.Falcon &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Hobby &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Kestrel &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Western.Capercaillie &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Black.Grouse &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rock.Ptarmigan &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Hazel.Grouse &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rock.Partridge &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Quail &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Pheasant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Water.Rail &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Moorhen &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Coot &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Northern.Lapwing &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Sandpiper &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Woodcock &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Yellow.legged.Gull &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Feral.Pigeon &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Stock.Dove &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Wood.Pigeon &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Turtle.Dove &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Collared.Dove &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Cuckoo &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Scops.Owl &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Pygmy.Owl &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Tawny.Owl &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Long.eared.Owl &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Boreal.Owl &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Alpine.Swift &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Swift &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Kingfisher &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Wryneck &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Green.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Grey.headed.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Black.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Great.Spotted.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Middle.Spotted.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Lesser.Spotted.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Three.toed.Woodpecker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Woodlark &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Skylark &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Barn.Swallow &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Crag.Martin &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.House.Martin &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Golden.Oriole &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Northern.Raven &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Carrion.Hooded.Crow &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rook &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Western.Jackdaw &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Magpie &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Spotted.Nutcracker &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Jay &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Red.billed.Chough &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Alpine.Chough &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Great.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Blue.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Coal.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Crested.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Marsh.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Willow.Tit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Long.tailed.Bushtit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Nuthatch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Treecreeper &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Short.toed.Treecreeper &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Wallcreeper &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; White.throated.Dipper &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Winter.Wren &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Robin &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Nightingale &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Black.Redstart &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Redstart &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Whinchat &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Stonechat &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Northern.Wheatear &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rufous.tailed.Rock.Thrush &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Ring.Ouzel &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Blackbird &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Fieldfare &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Song.Thrush &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Mistle.Thrush &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Grasshopper.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Savi.s.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Reed.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Marsh.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Melodious.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Icterine.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Blackcap &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Garden.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Whitethroat &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Lesser.Whitethroat &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Willow.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Chiffchaff &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Western.Bonelli.s.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Wood.Warbler &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Goldcrest &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Firecrest &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Spotted.Flycatcher &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Pied.Flycatcher &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Collared.Flycatcher &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Dunnock &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Alpine.Accentor &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Meadow.Pipit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Tawny.Pipit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Tree.Pipit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Water.Pipit &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; White.Wagtail &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Grey.Wagtail &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Western.Yellow.Wagtail &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Red.backed.Shrike &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Starling &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; House.Sparrow &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Italian.Sparrow &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Tree.Sparrow &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; White.winged.Snowfinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Hawfinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Greenfinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Goldfinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Siskin &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Linnet &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Lesser.Redpoll &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Citril.Finch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; European.Serin &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Eurasian.Bullfinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Red.Crossbill &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Chaffinch &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Corn.Bunting &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Yellowhammer &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Cirl.Bunting &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rock.Bunting &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Common.Reed.Bunting &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+## Parámetros del aumentado de datos
+
+El número de especies aumentada es arbitrario, pero vamos a intentar escoger un valor que sepamos que pueda contener el número de especies faltantes, o al menos duplique las especies observadas
+
+
+```r
+# Aumentado de datos
+nz &lt;- 150   # Especies potenciales en la población
+M &lt;- nspec + nz  # Tamaño de M son las especies observadas + las aumentadas
+
+yaug &lt;- cbind(ysum, array(0, dim=c(nsite, nz))) # agregamos las historias de detección de las especies inventadas
+```
+
+
+---
+## Finalmente unimos todo en un objeto lista con los datos que requiere el modelo
+
+
+```r
+# Generamos la base de datos para el modelo
+str(win.data &lt;- list(yaug = yaug, #matriz aumentada 
+                     nsite = nrow(ysum), # sitios
+                     nrep = nrep, #repeticiones
+                     M = M, # Mega población
+                     nspec = nspec, # especies
+                     nz = nz) ) # especies aumentadas
+```
+
+```
+## List of 6
+##  $ yaug :'data.frame':	267 obs. of  295 variables:
+##   ..$ Little.Grebe                  : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Great.Crested.Grebe           : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Grey.Heron                    : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ White.Stork                   : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Mute.Swan                     : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Greylag.Goose                 : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Mallard                       : int [1:267] 0 0 3 0 0 0 0 0 0 0 ...
+##   ..$ Common.Merganser              : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ European.Honey.Buzzard        : int [1:267] 0 0 1 0 0 0 0 0 0 0 ...
+##   ..$ Red.Kite                      : int [1:267] 0 0 1 0 2 0 1 3 0 0 ...
+##   ..$ Black.Kite                    : int [1:267] 3 3 1 2 2 3 1 2 3 3 ...
+##   ..$ Northern.Goshawk              : int [1:267] 0 0 0 0 0 0 0 0 1 0 ...
+##   ..$ Eurasian.Sparrowhawk          : int [1:267] 0 0 0 1 0 0 0 0 1 0 ...
+##   ..$ Common.Buzzard                : int [1:267] 0 1 2 1 2 2 1 3 3 3 ...
+##   ..$ Golden.Eagle                  : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Peregrine.Falcon              : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Hobby                : int [1:267] 0 0 0 0 0 1 0 0 0 0 ...
+##   ..$ Common.Kestrel                : int [1:267] 1 0 2 0 2 3 2 2 2 0 ...
+##   ..$ Western.Capercaillie          : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Black.Grouse                  : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Rock.Ptarmigan                : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Hazel.Grouse                  : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Rock.Partridge                : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Common.Quail                  : int [1:267] 0 0 0 1 0 0 0 0 0 0 ...
+##   ..$ Common.Pheasant               : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Water.Rail                    : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Common.Moorhen                : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Coot                 : int [1:267] 0 0 2 0 0 0 0 0 0 0 ...
+##   ..$ Northern.Lapwing              : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Common.Sandpiper              : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Woodcock             : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Yellow.legged.Gull            : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Feral.Pigeon                  : int [1:267] 3 0 0 0 0 1 0 0 2 0 ...
+##   ..$ Stock.Dove                    : int [1:267] 1 0 1 1 0 0 0 0 0 3 ...
+##   ..$ Common.Wood.Pigeon            : int [1:267] 3 3 3 3 3 3 3 3 3 3 ...
+##   ..$ European.Turtle.Dove          : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Collared.Dove        : int [1:267] 3 0 0 0 0 2 0 0 3 0 ...
+##   ..$ Common.Cuckoo                 : int [1:267] 0 1 1 0 0 0 0 2 0 2 ...
+##   ..$ Scops.Owl                     : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Pygmy.Owl            : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Tawny.Owl                     : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Long.eared.Owl                : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Boreal.Owl                    : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Alpine.Swift                  : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Common.Swift                  : int [1:267] 2 0 0 0 0 2 2 0 0 0 ...
+##   ..$ Common.Kingfisher             : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Wryneck              : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ European.Green.Woodpecker     : int [1:267] 0 3 0 1 3 3 0 1 1 1 ...
+##   ..$ Grey.headed.Woodpecker        : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Black.Woodpecker              : int [1:267] 0 0 2 0 1 0 0 0 1 0 ...
+##   ..$ Great.Spotted.Woodpecker      : int [1:267] 3 3 1 2 1 0 1 3 2 2 ...
+##   ..$ Middle.Spotted.Woodpecker     : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Lesser.Spotted.Woodpecker     : int [1:267] 0 0 0 0 0 0 0 0 1 0 ...
+##   ..$ Eurasian.Three.toed.Woodpecker: int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Woodlark                      : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Skylark              : int [1:267] 0 3 0 2 0 3 3 3 3 3 ...
+##   ..$ Barn.Swallow                  : int [1:267] 0 2 2 2 1 3 2 0 3 0 ...
+##   ..$ Eurasian.Crag.Martin          : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Common.House.Martin           : int [1:267] 2 2 2 1 1 1 2 0 2 0 ...
+##   ..$ Eurasian.Golden.Oriole        : int [1:267] 0 0 0 0 0 0 0 1 0 2 ...
+##   ..$ Northern.Raven                : int [1:267] 0 0 0 0 0 0 1 1 0 0 ...
+##   ..$ Carrion.Hooded.Crow           : int [1:267] 3 3 3 3 3 3 3 3 3 3 ...
+##   ..$ Rook                          : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Western.Jackdaw               : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Magpie               : int [1:267] 3 0 0 3 0 3 3 0 2 0 ...
+##   ..$ Spotted.Nutcracker            : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Jay                  : int [1:267] 2 2 2 2 2 1 3 3 0 3 ...
+##   ..$ Red.billed.Chough             : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Alpine.Chough                 : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Great.Tit                     : int [1:267] 3 3 3 3 3 3 3 3 3 3 ...
+##   ..$ Blue.Tit                      : int [1:267] 3 3 2 3 2 3 3 3 3 3 ...
+##   ..$ Coal.Tit                      : int [1:267] 0 0 3 3 3 0 0 3 0 3 ...
+##   ..$ European.Crested.Tit          : int [1:267] 0 0 3 1 3 0 0 2 0 3 ...
+##   ..$ Marsh.Tit                     : int [1:267] 0 0 3 0 1 1 0 2 1 2 ...
+##   ..$ Willow.Tit                    : int [1:267] 0 0 3 0 1 0 0 0 0 0 ...
+##   ..$ Long.tailed.Bushtit           : int [1:267] 0 0 1 0 0 0 0 0 1 1 ...
+##   ..$ Eurasian.Nuthatch             : int [1:267] 2 3 2 0 3 2 1 3 2 2 ...
+##   ..$ Eurasian.Treecreeper          : int [1:267] 0 0 1 0 2 0 0 0 2 0 ...
+##   ..$ Short.toed.Treecreeper        : int [1:267] 3 3 0 1 0 2 0 0 2 2 ...
+##   ..$ Wallcreeper                   : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ White.throated.Dipper         : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Winter.Wren                   : int [1:267] 0 3 3 3 3 0 1 3 1 3 ...
+##   ..$ European.Robin                : int [1:267] 3 3 3 2 3 3 0 3 3 3 ...
+##   ..$ Common.Nightingale            : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Black.Redstart                : int [1:267] 3 3 3 3 3 3 3 0 3 0 ...
+##   ..$ Common.Redstart               : int [1:267] 1 0 0 1 0 1 0 0 0 0 ...
+##   ..$ Whinchat                      : int [1:267] 0 0 1 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Stonechat            : int [1:267] 0 0 0 0 0 3 0 0 0 0 ...
+##   ..$ Northern.Wheatear             : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Rufous.tailed.Rock.Thrush     : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Ring.Ouzel                    : int [1:267] 0 0 1 0 2 0 0 0 0 0 ...
+##   ..$ Common.Blackbird              : int [1:267] 3 3 3 3 3 3 3 3 3 3 ...
+##   ..$ Fieldfare                     : int [1:267] 0 0 3 0 3 0 0 1 0 0 ...
+##   ..$ Song.Thrush                   : int [1:267] 0 3 3 1 3 0 0 3 3 2 ...
+##   ..$ Mistle.Thrush                 : int [1:267] 0 0 3 2 3 0 2 3 2 2 ...
+##   ..$ Common.Grasshopper.Warbler    : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Savi.s.Warbler                : int [1:267] 0 0 0 0 0 0 0 0 0 0 ...
+##   ..$ Eurasian.Reed.Warbler         : int [1:267] 0 0 0 1 0 0 0 0 0 0 ...
+##   ..$ Marsh.Warbler                 : int [1:267] 0 0 2 0 0 0 0 0 0 0 ...
+##   .. [list output truncated]
+##  $ nsite: int 267
+##  $ nrep : int [1:42186] 3 3 3 3 3 3 3 3 3 3 ...
+##  $ M    : num 295
+##  $ nspec: int 145
+##  $ nz   : num 150
+```
+
+
+---
+## Creando el modelo
+
+El modelo lo vamos a generar en un lenguaje llamado BUGS, y rjags es la conexión con ese lenguaje y R
+
+
+```r
+sink("modeloDR.txt") #nombre del modelo
+cat("
+model {
+
+# Priors para describir la heterogeneidad entre las especies de la comunidad
+
+for(k in 1:M){    # Loop para todas las especies
+  lpsi[k] ~ dnorm(mu.lpsi, tau.lpsi)
+  lp[k] ~ dnorm(mu.lp, tau.lp)
+}
+
+# Priors para la comunidad
+omega ~ dunif(0,1)      #Parámetro aumentado
+mu.lpsi ~ dnorm(0,0.001) # Promedio de psi (logit)
+mu.lp ~ dnorm(0,0.001)   # Promedio de p (logit)
+tau.lpsi &lt;- pow(sd.lpsi, -2)
+sd.lpsi ~ dunif(0,5)    # Heterogeneidad de especies en logit(psi)
+tau.lp &lt;- pow(sd.lp, -2)
+sd.lp ~ dunif(0,5)        # Heterogeneidad de especies en logit(p)
+```
+
+---
+
+
+```r
+"# Parámetro aumentado 
+for(k in 1:M){
+  w[k] ~ dbern(omega)           # Parámetro de comunidad
+}                               
+
+# Modelo ecológico para la ocurrencia z
+
+for(k in 1:M){
+  mu.psi[k] &lt;- w[k] * psi[k]  
+  logit(psi[k]) &lt;- lpsi[k]
+  for (i in 1:nsite) {
+    z[i,k] ~ dbern(mu.psi[k])
+  }
+}
+
+# Modelo observacional y
+for(k in 1:M){
+  logit(p[k]) &lt;- lp[k]
+  for (i in 1:nsite) {
+    mu.p[i,k] &lt;- z[i,k] * p[k]  
+    yaug[i,k] ~ dbin(mu.p[i,k], nrep[i])
+  }
+}
+```
+
+---
+
+```r
+# Parámetros derivados
+for(k in 1:M){
+   Nocc.fs[k] &lt;- sum(z[,k])     # Sitios ocupados
+}
+for (i in 1:nsite) {
+   Nsite[i] &lt;- sum(z[i,])       # Número de especies que ocupa cada sitio
+}
+n0 &lt;- sum(w[(nspec+1):(nspec+nz)]) # Número de especies no observadas
+Ntotal &lt;- sum(w[])              # Total de especies de la comunidad (= nspec + n0)
+}
+",fill = TRUE)
+sink()
+```
+
+
+
+---
+# Los valores iniciales
+
+
+
+
+```r
+# Valores iniciales
+wst &lt;- rep(1, nspec+nz)   # Uno para todos los sitios
+zst &lt;- array(1, dim = c(nsite, nspec+nz)) # ditto de z
+inits &lt;- function() list(z = zst, 
+                         w = wst, 
+                         lpsi = rnorm(n = nspec+nz), 
+                         lp = rnorm(n = nspec+nz))
+```
+
+---
+# Los parámetros que vamos a monitorear 
+
+
+```r
+params &lt;- c("mu.lpsi", 
+            "sd.lpsi", 
+            "mu.lp", 
+            "sd.lp", 
+            "psi", 
+            "p", 
+            "Nsite", 
+            "Ntotal", 
+            "omega", 
+            "n0")
+```
+
+---
+## Ya por fin el  jags
+
+En este caso no corran la función porque dura alrededor de 56 min
+
+
+```r
+# Valores para Markov Chain Monte Carlo
+ni &lt;- 22000   ;   nt &lt;- 2   ;   nb &lt;- 2000   ;   nc &lt;- 3
+
+# Ahora si a correr el modelo
+mod_result &lt;- jags(win.data, 
+             inits, 
+             params, 
+             "modeloDR.txt", 
+             n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb, parallel = TRUE); beep(sound=8)
+
+# Duración 56 min aprox
+```
+
+
+
+---
+## Nuestro resultado
+
+
+```r
+str(mod_result)
+```
+
+```
+## List of 24
+##  $ sims.list  :List of 11
+##   ..$ mu.lpsi : num [1:30000] -2.17 -2.26 -2.17 -2.3 -2.35 ...
+##   ..$ sd.lpsi : num [1:30000] 2.63 2.61 2.76 2.6 2.79 ...
+##   ..$ mu.lp   : num [1:30000] -0.682 -0.783 -0.653 -0.915 -0.966 ...
+##   ..$ sd.lp   : num [1:30000] 3.6 3.36 3.39 3.47 3.36 ...
+##   ..$ psi     : num [1:30000, 1:295] 0.0179 0.0149 0.0161 0.026 0.0371 ...
+##   ..$ p       : num [1:30000, 1:295] 0.5 0.571 0.585 0.727 0.53 ...
+##   ..$ Nsite   : num [1:30000, 1:267] 42 50 46 43 41 42 47 48 44 46 ...
+##   ..$ Ntotal  : num [1:30000] 201 199 195 193 198 199 198 197 200 205 ...
+##   ..$ omega   : num [1:30000] 0.713 0.685 0.638 0.667 0.699 ...
+##   ..$ n0      : num [1:30000] 56 54 50 48 53 54 53 52 55 60 ...
+##   ..$ deviance: num [1:30000] 18996 18930 18805 18802 18707 ...
+##  $ mean       :List of 11
+##   ..$ mu.lpsi : num -2.52
+##   ..$ sd.lpsi : num 2.6
+##   ..$ mu.lp   : num 0.632
+##   ..$ sd.lp   : num 1.34
+##   ..$ psi     : num [1:295(1d)] 0.02165 0.0161 0.01789 0.00575 0.02002 ...
+##   ..$ p       : num [1:295(1d)] 0.621 0.5 0.619 0.79 0.818 ...
+##   ..$ Nsite   : num [1:267(1d)] 32.5 34.5 53.2 42.3 46.3 ...
+##   ..$ Ntotal  : num 165
+##   ..$ omega   : num 0.559
+##   ..$ n0      : num 20
+##   ..$ deviance: num 18605
+##  $ sd         :List of 11
+##   ..$ mu.lpsi : num 0.317
+##   ..$ sd.lpsi : num 0.247
+##   ..$ mu.lp   : num 0.166
+##   ..$ sd.lp   : num 0.178
+##   ..$ psi     : num [1:295(1d)] 0.00948 0.01331 0.00877 0.00467 0.00848 ...
+##   ..$ p       : num [1:295(1d)] 0.1276 0.1658 0.1398 0.1567 0.0917 ...
+##   ..$ Nsite   : num [1:267(1d)] 1.65 1.63 1.53 1.57 1.57 ...
+##   ..$ Ntotal  : num 8.78
+##   ..$ omega   : num 0.0416
+##   ..$ n0      : num 8.78
+##   ..$ deviance: num 145
+##  $ q2.5       :List of 11
+##   ..$ mu.lpsi : num -3.18
+##   ..$ sd.lpsi : num 2.16
+##   ..$ mu.lp   : num 0.362
+##   ..$ sd.lp   : num 1.13
+##   ..$ psi     : num [1:295(1d)] 0.007316 0.003457 0.005243 0.000529 0.006917 ...
+##   ..$ p       : num [1:295(1d)] 0.351 0.179 0.321 0.388 0.6 ...
+##   ..$ Nsite   : num [1:267(1d)] 30 32 51 40 44 41 34 35 42 35 ...
+##   ..$ Ntotal  : num 152
+##   ..$ omega   : num 0.483
+##   ..$ n0      : num 7
+##   ..$ deviance: num 18324
+##  $ q25        :List of 11
+##   ..$ mu.lpsi : num -2.72
+##   ..$ sd.lpsi : num 2.42
+##   ..$ mu.lp   : num 0.555
+##   ..$ sd.lp   : num 1.25
+##   ..$ psi     : num [1:295(1d)] 0.01478 0.00899 0.01161 0.00243 0.01389 ...
+##   ..$ p       : num [1:295(1d)] 0.538 0.381 0.527 0.708 0.766 ...
+##   ..$ Nsite   : num [1:267(1d)] 31 33 52 41 45 42 35 36 43 36 ...
+##   ..$ Ntotal  : num 159
+##   ..$ omega   : num 0.53
+##   ..$ n0      : num 14
+##   ..$ deviance: num 18507
+##  $ q50        :List of 11
+##   ..$ mu.lpsi : num -2.5
+##   ..$ sd.lpsi : num 2.58
+##   ..$ mu.lp   : num 0.642
+##   ..$ sd.lp   : num 1.32
+##   ..$ psi     : num [1:295(1d)] 0.02031 0.01371 0.01636 0.00454 0.01878 ...
+##   ..$ p       : num [1:295(1d)] 0.631 0.502 0.631 0.829 0.832 ...
+##   ..$ Nsite   : num [1:267(1d)] 32 34 53 42 46 43 36 37 44 37 ...
+##   ..$ Ntotal  : num 164
+##   ..$ omega   : num 0.557
+##   ..$ n0      : num 19
+##   ..$ deviance: num 18603
+##  $ q75        :List of 11
+##   ..$ mu.lpsi : num -2.29
+##   ..$ sd.lpsi : num 2.75
+##   ..$ mu.lp   : num 0.728
+##   ..$ sd.lp   : num 1.41
+##   ..$ psi     : num [1:295(1d)] 0.02697 0.02019 0.02254 0.00779 0.02491 ...
+##   ..$ p       : num [1:295(1d)] 0.715 0.623 0.722 0.91 0.887 ...
+##   ..$ Nsite   : num [1:267(1d)] 33 35 54 43 47 44 37 38 45 38 ...
+##   ..$ Ntotal  : num 170
+##   ..$ omega   : num 0.585
+##   ..$ n0      : num 25
+##   ..$ deviance: num 18701
+##  $ q97.5      :List of 11
+##   ..$ mu.lpsi : num -1.95
+##   ..$ sd.lpsi : num 3.12
+##   ..$ mu.lp   : num 0.883
+##   ..$ sd.lp   : num 1.6
+##   ..$ psi     : num [1:295(1d)] 0.0438 0.0409 0.0392 0.0177 0.0398 ...
+##   ..$ p       : num [1:295(1d)] 0.842 0.805 0.857 0.979 0.954 ...
+##   ..$ Nsite   : num [1:267(1d)] 36 38 56 46 50 46 40 41 47 40 ...
+##   ..$ Ntotal  : num 185
+##   ..$ omega   : num 0.645
+##   ..$ n0      : num 40
+##   ..$ deviance: num 18895
+##  $ overlap0   :List of 11
+##   ..$ mu.lpsi : logi FALSE
+##   ..$ sd.lpsi : logi FALSE
+##   ..$ mu.lp   : logi FALSE
+##   ..$ sd.lp   : logi FALSE
+##   ..$ psi     : logi [1:295(1d)] FALSE FALSE FALSE FALSE FALSE FALSE ...
+##   ..$ p       : logi [1:295(1d)] FALSE FALSE FALSE FALSE FALSE FALSE ...
+##   ..$ Nsite   : logi [1:267(1d)] FALSE FALSE FALSE FALSE FALSE FALSE ...
+##   ..$ Ntotal  : logi FALSE
+##   ..$ omega   : logi FALSE
+##   ..$ n0      : logi FALSE
+##   ..$ deviance: logi FALSE
+##  $ f          :List of 11
+##   ..$ mu.lpsi : num 1
+##   ..$ sd.lpsi : num 1
+##   ..$ mu.lp   : num 0.993
+##   ..$ sd.lp   : num 1
+##   ..$ psi     : num [1:295(1d)] 1 1 1 1 1 1 1 1 1 1 ...
+##   ..$ p       : num [1:295(1d)] 1 1 1 1 1 1 1 1 1 1 ...
+##   ..$ Nsite   : num [1:267(1d)] 1 1 1 1 1 1 1 1 1 1 ...
+##   ..$ Ntotal  : num 1
+##   ..$ omega   : num 1
+##   ..$ n0      : num 1
+##   ..$ deviance: num 1
+##  $ Rhat       :List of 11
+##   ..$ mu.lpsi : num 1
+##   ..$ sd.lpsi : num 1.01
+##   ..$ mu.lp   : num 1.08
+##   ..$ sd.lp   : num 1.15
+##   ..$ psi     : num [1:295(1d)] 1 1.08 1 1 1 ...
+##   ..$ p       : num [1:295(1d)] 1 1 1 1 1 ...
+##   ..$ Nsite   : num [1:267(1d)] 1.02 1.02 1.02 1.02 1.02 ...
+##   ..$ Ntotal  : num 1.03
+##   ..$ omega   : num 1.01
+##   ..$ n0      : num 1.03
+##   ..$ deviance: num 1
+##  $ n.eff      :List of 11
+##   ..$ mu.lpsi : num 920
+##   ..$ sd.lpsi : num 185
+##   ..$ mu.lp   : num 479
+##   ..$ sd.lp   : num 330
+##   ..$ psi     : num [1:295(1d)] 26107 2271 23094 25207 30000 ...
+##   ..$ p       : num [1:295(1d)] 30000 9666 30000 9103 24369 ...
+##   ..$ Nsite   : num [1:267(1d)] 829 690 548 996 597 543 567 527 679 551 ...
+##   ..$ Ntotal  : num 167
+##   ..$ omega   : num 355
+##   ..$ n0      : num 167
+##   ..$ deviance: num 6533
+##  $ pD         : num 10512
+##  $ DIC        : num 29116
+##  $ summary    : num [1:865, 1:11] -2.5168 2.5968 0.6323 1.3427 0.0216 ...
+##   ..- attr(*, "dimnames")=List of 2
+##   .. ..$ : chr [1:865] "mu.lpsi" "sd.lpsi" "mu.lp" "sd.lp" ...
+##   .. ..$ : chr [1:11] "mean" "sd" "2.5%" "25%" ...
+##  $ samples    :List of 3
+##   ..$ : 'mcmc' num [1:10000, 1:865] -2.17 -2.26 -2.17 -2.3 -2.35 ...
+##   .. ..- attr(*, "dimnames")=List of 2
+##   .. .. ..$ : NULL
+##   .. .. ..$ : chr [1:865] "mu.lpsi" "sd.lpsi" "mu.lp" "sd.lp" ...
+##   .. ..- attr(*, "mcpar")= num [1:3] 2002 22000 2
+##   ..$ : 'mcmc' num [1:10000, 1:865] -2.19 -2.08 -2.04 -2.1 -1.74 ...
+##   .. ..- attr(*, "dimnames")=List of 2
+##   .. .. ..$ : NULL
+##   .. .. ..$ : chr [1:865] "mu.lpsi" "sd.lpsi" "mu.lp" "sd.lp" ...
+##   .. ..- attr(*, "mcpar")= num [1:3] 2002 22000 2
+##   ..$ : 'mcmc' num [1:10000, 1:865] -3.5 -3.14 -3.03 -3.13 -3.37 ...
+##   .. ..- attr(*, "dimnames")=List of 2
+##   .. .. ..$ : NULL
+##   .. .. ..$ : chr [1:865] "mu.lpsi" "sd.lpsi" "mu.lp" "sd.lp" ...
+##   .. ..- attr(*, "mcpar")= num [1:3] 2002 22000 2
+##   ..- attr(*, "class")= chr "mcmc.list"
+##  $ modfile    : chr "modeloDR.txt"
+##  $ model      :List of 3
+##   ..$ cluster1:List of 8
+##   .. ..$ ptr      :function ()  
+##   .. ..$ data     :function ()  
+##   .. ..$ model    :function ()  
+##   .. ..$ state    :function (internal = FALSE)  
+##   .. ..$ nchain   :function ()  
+##   .. ..$ iter     :function ()  
+##   .. ..$ sync     :function ()  
+##   .. ..$ recompile:function ()  
+##   .. ..- attr(*, "class")= chr "jags"
+##   ..$ cluster2:List of 8
+##   .. ..$ ptr      :function ()  
+##   .. ..$ data     :function ()  
+##   .. ..$ model    :function ()  
+##   .. ..$ state    :function (internal = FALSE)  
+##   .. ..$ nchain   :function ()  
+##   .. ..$ iter     :function ()  
+##   .. ..$ sync     :function ()  
+##   .. ..$ recompile:function ()  
+##   .. ..- attr(*, "class")= chr "jags"
+##   ..$ cluster3:List of 8
+##   .. ..$ ptr      :function ()  
+##   .. ..$ data     :function ()  
+##   .. ..$ model    :function ()  
+##   .. ..$ state    :function (internal = FALSE)  
+##   .. ..$ nchain   :function ()  
+##   .. ..$ iter     :function ()  
+##   .. ..$ sync     :function ()  
+##   .. ..$ recompile:function ()  
+##   .. ..- attr(*, "class")= chr "jags"
+##  $ parameters : chr [1:11] "mu.lpsi" "sd.lpsi" "mu.lp" "sd.lp" ...
+##  $ mcmc.info  :List of 10
+##   ..$ n.chains        : num 3
+##   ..$ n.adapt         : num [1:3] 100 100 100
+##   ..$ sufficient.adapt: logi [1:3] TRUE TRUE TRUE
+##   ..$ n.iter          : num 22000
+##   ..$ n.burnin        : num 2000
+##   ..$ n.thin          : num 2
+##   ..$ n.samples       : num 30000
+##   ..$ end.values      :List of 3
+##   .. ..$ : Named num [1:865] 31 34 52 43 47 44 38 39 45 36 ...
+##   .. .. ..- attr(*, "names")= chr [1:865] "Nsite[1]" "Nsite[2]" "Nsite[3]" "Nsite[4]" ...
+##   .. ..$ : Named num [1:865] 33 34 54 40 48 43 35 36 43 35 ...
+##   .. .. ..- attr(*, "names")= chr [1:865] "Nsite[1]" "Nsite[2]" "Nsite[3]" "Nsite[4]" ...
+##   .. ..$ : Named num [1:865] 32 33 52 43 46 46 35 37 44 36 ...
+##   .. .. ..- attr(*, "names")= chr [1:865] "Nsite[1]" "Nsite[2]" "Nsite[3]" "Nsite[4]" ...
+##   ..$ elapsed.mins    : num 56.1
+##   ..$ n.cores         : num 3
+##  $ run.date   : POSIXct[1:1], format: "2021-06-03 22:53:38"
+##  $ parallel   : logi TRUE
+##  $ bugs.format: logi FALSE
+##  $ calc.DIC   : logi TRUE
+##  - attr(*, "class")= chr "jagsUI"
+```
+
+---
+### Veamos el resultado gráfico
+
+La riqueza estimada de especies es ~165 sps
+.pull-left[
+
+```r
+(riqueza_est &lt;- mod_result$mean$Ntotal)
+```
+
+```
+## [1] 165.0414
+```
+
+
+```r
+plot(table(mod_result$sims.list$Ntotal), 
+     main="", 
+     ylab = "",
+     xlab = "Riqueza de especies",
+     frame= F,
+     xlim= c(144, 245))
+abline(v= nspec, col= "blue", lwd=4)
+abline(v= riqueza_est, col= "red", lwd=4)
+```
+]
+.pull-right[
+&lt;img src="multi_sp_2_GAP_files/figure-html/unnamed-chunk-16-1.png" width="100%" /&gt;
+
+
+]
+---
+class:inverse
+
+# Ajustamos nuestro primer modelo de multi-especie. 
+
+Recordemos que **N** es la riqueza estimada a un **área mayor** de nuestro muestreo (área que no conocemos)
+.pull-left[
+### **N** depende de si cumplimos los supuestos del área
+- El muestreo es aleatorio. El área de muestreo debe **representar la región**
+- En caso contrario N representa el número de especies un área hipotética con **las mismas condiciones**
+- Si la región es pequeña, **N** puede ser **sobre-estimada**
+]
+.pull-right[
+### y de las especies
+- Datos de **insectos** no sirven para predecir aves
+- Predicción a especies que sean **detectados de manera similar** con la metodología usada.
+
+.footnote[Guillera-Arroita, G, Kéry, M, Lahoz-Monfort, JJ. Inferring species richness using multispecies occupancy modeling: Estimation performance and interpretation. Ecol Evol. 2019; 9: 780– 792. https://doi.org/10.1002/ece3.4821]
+]
+---
+# ¿Será mejor que un estimador no-paramétrico?
+
+
+```r
+## 5.1 Riqueza con Chao2----
+
+# Formatear los datos a un vector de frecuencia
+abu_Chao &lt;- yaug %&gt;% 
+  select(1:nspec) %&gt;%  # seleccionar especies observadas
+  t() %&gt;% # trasponer la tabla
+  rowSums(. , na.rm = T) %&gt;% # sumar las filas
+  as.data.frame()
+
+# Calcular la riqueza con estimadores no paramétricos
+chao_sp &lt;- ChaoSpecies(abu_Chao, datatype = "abundance")
+
+NICHao &lt;- chao_sp$Species_table[5,c(1,3,4)] # Extraer valores de IChao
+Nocu &lt;- mod_result$summary[862,c(1,4,7)] # Valores del modelo DR
+
+# Unir en un solo dataframe
+Nplotdata &lt;- rbind(IChao=NICHao, DR.mod=Nocu) %&gt;% 
+  as.data.frame() %&gt;% 
+  rownames_to_column(.)
+```
+
+---
+# Comparación
+
+Veamos de manera gráfica que tanto difieren las estimaciones de la riqueza
+
+.pull-left[
+
+
+```r
+windowsFonts(TNR = windowsFont("Times New Roman")) # Fuentes
+
+# Gráfico para comparar la riqueza estimada
+plotN &lt;- ggplot(Nplotdata, aes(x=rowname, y= Estimate, col=rowname))+
+  geom_point(aes(shape=rowname),size=3)+
+  geom_errorbar(aes(ymin= Nplotdata$`95%Lower`, ymax= Nplotdata$`95%Upper`), width=.3, size=1)+
+  labs(x="Estimador de riqueza",y="Número de especies estimado", title = "Diferencia de los estimadores de riqueza")+
+  theme_classic()+
+    theme(text=element_text(size = 13, family = "TNR"), plot.title = element_text(hjust= 0.5), legend.position = "none")
+```
+
+]
+
+.pull-right[
+
+&lt;img src="multi_sp_2_GAP_files/figure-html/unnamed-chunk-19-1.png" width="100%" /&gt;
+
+
+]
+
+---
+class: inverse
+
+# Ocupación multi-specie vs IChao
+.pull-left[
+
+
+![](img/pildoras.jpg)
+
+.footnote[ Tingley, MW, Nadeau, CP, Sandor, ME. Multi-species occupancy models as robust estimators of community richness. Methods Ecol Evol. 2020; 11: 633– 642. https://doi.org/10.1111/2041-210X.13378]
+]
+
+.pull-right[
+Ambos lo hacen muy mal cuando `\(\psi_k\)` es muy **bajo**
+
+- **Chao** siempre estará sesgado al valor **más bajo de N** por no considerar la detección (De hecho Chao lo reconoce)
+- Los modelos de ocupación son muy **hambrientos** de datos
+- Tienes que saber "**programar**" para ajustar modelos multi-specie 
+- Todavía hay algunos bmoles con la heterogeneidad y los prior (Guillera-Arroita et al. 2019)
+]
+
+---
+# Las posibilidades son infinitas
+1. Estructura de la diversidad- Número efectivo de especies
+![](img/dethill.png)
+---
+## 1. Estructura de la diversidad- Número efectivo de especies
+
+.pull-left[
+Cómo la presencia o no de leones afecta la riqueza de meso-carnívoros
+
+&gt;Curveira-Santos Gonçalo, Sutherland Chris, Tenan Simone, Fernández-Chacón lbert, Mann Gareth K. H., Pitman Ross T.and Swanepoel Lourens H. 2021. Mesocarnivore community structuring in the presence of Africa's apex predator. Proc. R. Soc. B.2882020237920202379. http://doi.org/10.1098/rspb.2020.2379
+
+]
+
+.pull-right[ ![](img/hilllion.png)
+]
+---
+# 2. Diversidad funcional y filogenética
+.pull-left[
+Las consecuencias de no considerar a especies no detectadas en los análisis.
+
+&gt; Jarzyna, M. A., &amp; Jetz, W. (2016). Detecting the multiple facets of biodiversity. Trends in ecology &amp; evolution, 31(7), 527-538. https://doi.org/10.1016/j.tree.2016.04.002
+
+
+
+Les dejo ejemplos divertidos en la carpeta de bibliografía
+
+]
+
+.pull-right[
+![](img/funcional.jpg)
+]
+
+---
+class: inverse, center, top
+
+background-image: url("img/peca.JPG")
+background-position: 60% 60%
+background-size: cover
+
+
+# .big-text[Gracias]
+
+---
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"slideNumberFormat": "%current%",
+"highlightLanguage": ["r", "css"],
+"highlightStyle": "github",
+"highlightLines": true,
+"ratio": "16:9",
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

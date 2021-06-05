@@ -1,0 +1,54 @@
+
+model {
+
+# Priors para describir la heterogeneidad entre las especies de la comunidad
+
+for(k in 1:M){    # Loop para todas las especies
+  lpsi[k] ~ dnorm(mu.lpsi, tau.lpsi)
+  lp[k] ~ dnorm(mu.lp, tau.lp)
+}
+
+# Priors para la comunidad
+omega ~ dunif(0,1)      #Parámetro aumentado
+mu.lpsi ~ dnorm(0,0.001) # Promedio de psi (logit)
+mu.lp ~ dnorm(0,0.001)   # Promedio de p (logit)
+tau.lpsi <- pow(sd.lpsi, -2)
+sd.lpsi ~ dunif(0,5)    # Heterogeneidad de especies en logit(psi)
+tau.lp <- pow(sd.lp, -2)
+sd.lp ~ dunif(0,5)        # Heterogeneidad de especies en logit(p)
+
+# Parámetro aumentado (parte estocástica)
+for(k in 1:M){
+  w[k] ~ dbern(omega)           # Parámetro de comunidad
+}                               
+
+# Modelo ecológico para la ocurrencia z
+
+for(k in 1:M){
+  mu.psi[k] <- w[k] * psi[k]  
+  logit(psi[k]) <- lpsi[k]
+  for (i in 1:nsite) {
+    z[i,k] ~ dbern(mu.psi[k])
+  }
+}
+
+# Modelo observacional y
+for(k in 1:M){
+  logit(p[k]) <- lp[k]
+  for (i in 1:nsite) {
+    mu.p[i,k] <- z[i,k] * p[k]  
+    yaug[i,k] ~ dbin(mu.p[i,k], nrep[i])
+  }
+}
+
+# Parámetros derivados
+for(k in 1:M){
+   Nocc.fs[k] <- sum(z[,k])     # Sitios ocupados
+}
+for (i in 1:nsite) {
+   Nsite[i] <- sum(z[i,])       # Número de especies que ocupa cada sitio
+}
+n0 <- sum(w[(nspec+1):(nspec+nz)]) # Número de especies no observadas
+Ntotal <- sum(w[])              # Total de especies de la comunidad (= nspec + n0)
+}
+
